@@ -22,236 +22,280 @@ use Backend\Modules\FormBuilder\Engine\Model as BackendFormBuilderModel;
 class SaveField extends BackendBaseAJAXAction
 {
     /**
+     * @var int
+     */
+    private $formId;
+    private $fieldId;
+
+    /**
+     * @var string
+     */
+    private $type;
+    private $label;
+    private $values;
+    private $defaultValues;
+    private $required;
+    private $requiredErrorMessage;
+    private $validation;
+    private $validationParameter;
+    private $errorMessage;
+    private $replyTo;
+
+    /**
      * Execute the action
      */
     public function execute()
     {
         parent::execute();
 
-        // get parameters
-        $formId = \SpoonFilter::getPostValue('form_id', null, '', 'int');
-        $fieldId = \SpoonFilter::getPostValue('field_id', null, '', 'int');
-        $type = \SpoonFilter::getPostValue(
+        $this->getData();
+
+        // check if we have enough parameters
+        $inputError = $this->validateInput();
+        if (!empty($inputError)) {
+            return $this->output(self::BAD_REQUEST, null, $inputError);
+        }
+
+        if ($this->type != 'textbox') {
+            // extra validation is only possible for textfields
+            $this->validation = '';
+            $this->validationParameter = '';
+            $this->errorMessage = '';
+        }
+
+        // validate needed parameters for the type of field we're saving
+        $dataErrors = $this->validateData();
+        if (!empty($dataErrors)) {
+            $this->output(self::OK, array('errors' => $dataErrors), 'form contains errors');
+        }
+
+        // clean up our input
+        $this->cleanUpInput();
+        $fieldHTML = $this->saveField();
+
+        // success output
+        $this->output(
+            self::OK,
+            array(
+                'field_id' => $this->fieldId,
+                'field_html' => $fieldHTML,
+            ),
+            'field saved'
+        );
+    }
+
+    /**
+     * Fetches the data from the ajax request
+     */
+    private function getData()
+    {
+        // get all parameters from the $_POST array
+        $this->formId = \SpoonFilter::getPostValue('form_id', null, '', 'int');
+        $this->fieldId = \SpoonFilter::getPostValue('field_id', null, '', 'int');
+        $this->type = \SpoonFilter::getPostValue(
             'type',
             array('checkbox', 'dropdown', 'heading', 'paragraph', 'radiobutton', 'submit', 'textarea', 'textbox'),
             '',
             'string'
         );
-        $label = trim(\SpoonFilter::getPostValue('label', null, '', 'string'));
-        $values = trim(\SpoonFilter::getPostValue('values', null, '', 'string'));
-        $defaultValues = trim(\SpoonFilter::getPostValue('default_values', null, '', 'string'));
-        $required = \SpoonFilter::getPostValue('required', array('Y','N'), 'N', 'string');
-        $requiredErrorMessage = trim(\SpoonFilter::getPostValue('required_error_message', null, '', 'string'));
-        $validation = \SpoonFilter::getPostValue('validation', array('email', 'numeric'), '', 'string');
-        $validationParameter = trim(\SpoonFilter::getPostValue('validation_parameter', null, '', 'string'));
-        $errorMessage = trim(\SpoonFilter::getPostValue('error_message', null, '', 'string'));
+        $this->label = trim(\SpoonFilter::getPostValue('label', null, '', 'string'));
+        $this->values = trim(\SpoonFilter::getPostValue('values', null, '', 'string'));
+        $this->defaultValues = trim(\SpoonFilter::getPostValue('default_values', null, '', 'string'));
+        $this->required = \SpoonFilter::getPostValue('required', array('Y','N'), 'N', 'string');
+        $this->requiredErrorMessage = trim(\SpoonFilter::getPostValue('required_error_message', null, '', 'string'));
+        $this->validation = \SpoonFilter::getPostValue('validation', array('email', 'numeric'), '', 'string');
+        $this->validationParameter = trim(\SpoonFilter::getPostValue('validation_parameter', null, '', 'string'));
+        $this->errorMessage = trim(\SpoonFilter::getPostValue('error_message', null, '', 'string'));
+        $this->replyTo = \SpoonFilter::getPostValue('reply_to', array('Y','N'), 'N', 'string');
+    }
 
-        // special field for textbox: reply to
-        $replyTo = \SpoonFilter::getPostValue('reply_to', array('Y','N'), 'N', 'string');
+    /**
+     * Validates the fields we got trough ajax
+     *
+     * @return null|string
+     */
+    private function validateInput()
+    {
+        if (!BackendFormBuilderModel::exists($this->formId)) {
+            return 'form does not exist';
+        } elseif ($this->fieldId !== 0 && !BackendFormBuilderModel::existsField($this->fieldId, $this->formId)) {
+            return 'field does not exist';
+        } elseif ($this->type == '') {
+            return 'invalid type provided';
+        }
 
-        // invalid form id
-        if (!BackendFormBuilderModel::exists($formId)) {
-            $this->output(self::BAD_REQUEST, null, 'form does not exist');
-        } else {
-            // invalid fieldId
-            if ($fieldId !== 0 && !BackendFormBuilderModel::existsField($fieldId, $formId)) {
-                $this->output(self::BAD_REQUEST, null, 'field does not exist');
-            } else {
-                // invalid type
-                if ($type == '') {
-                    $this->output(self::BAD_REQUEST, null, 'invalid type provided');
-                } else {
-                    // extra validation is only possible for textfields
-                    if ($type != 'textbox') {
-                        $validation = '';
-                        $validationParameter = '';
-                        $errorMessage = '';
-                    }
+        return null;
+    }
 
-                    // init
-                    $errors = array();
+    /**
+     * Validates the data we got trough ajax
+     *
+     * @return array
+     */
+    private function validateData()
+    {
+        $errors = array();
 
-                    // validate textbox
-                    if ($type == 'textbox') {
-                        if ($label == '') {
-                            $errors['label'] = BL::getError('LabelIsRequired');
-                        }
-                        if ($required == 'Y' && $requiredErrorMessage == '') {
-                            $errors['required_error_message'] = BL::getError('ErrorMessageIsRequired');
-                        }
-                        if ($validation != '' && $errorMessage == '') {
-                            $errors['error_message'] = BL::getError('ErrorMessageIsRequired');
-                        }
-                    } elseif ($type == 'textarea') {
-                        // validate textarea
-                        if ($label == '') {
-                            $errors['label'] = BL::getError('LabelIsRequired');
-                        }
-                        if ($required == 'Y' && $requiredErrorMessage == '') {
-                            $errors['required_error_message'] = BL::getError('ErrorMessageIsRequired');
-                        }
-                        if ($validation != '' && $errorMessage == '') {
-                            $errors['error_message'] = BL::getError('ErrorMessageIsRequired');
-                        }
-                    } elseif ($type == 'heading' && $values == '') {
-                        // validate heading
-                        $errors['values'] = BL::getError('ValueIsRequired');
-                    } elseif ($type == 'paragraph' && $values == '') {
-                        // validate paragraphs
-                        $errors['values'] = BL::getError('ValueIsRequired');
-                    } elseif ($type == 'submit' && $values == '') {
-                        // validate submitbuttons
-                        $errors['values'] = BL::getError('ValueIsRequired');
-                    } elseif ($type == 'dropdown') {
-                        // validate dropdown
-                        $values = trim($values, ',');
-
-                        // validate
-                        if ($label == '') {
-                            $errors['label'] = BL::getError('LabelIsRequired');
-                        }
-                        if ($required == 'Y' && $requiredErrorMessage == '') {
-                            $errors['required_error_message'] = BL::getError('ErrorMessageIsRequired');
-                        }
-                        if ($values == '') {
-                            $errors['values'] = BL::getError('ValueIsRequired');
-                        }
-                    } elseif ($type == 'radiobutton') {
-                        // validate radiobutton
-                        if ($label == '') {
-                            $errors['label'] = BL::getError('LabelIsRequired');
-                        }
-                        if ($required == 'Y' && $requiredErrorMessage == '') {
-                            $errors['required_error_message'] = BL::getError('ErrorMessageIsRequired');
-                        }
-                        if ($values == '') {
-                            $errors['values'] = BL::getError('ValueIsRequired');
-                        }
-                    } elseif ($type == 'checkbox') {
-                        // validate checkbox
-                        if ($label == '') {
-                            $errors['label'] = BL::getError('LabelIsRequired');
-                        }
-                        if ($required == 'Y' && $requiredErrorMessage == '') {
-                            $errors['required_error_message'] = BL::getError('ErrorMessageIsRequired');
-                        }
-                    }
-
-                    // got errors
-                    if (!empty($errors)) {
-                        $this->output(self::OK, array('errors' => $errors), 'form contains errors');
-                    } else {
-                        // htmlspecialchars except for paragraphs
-                        if ($type != 'paragraph') {
-                            if ($values != '') {
-                                $values = \SpoonFilter::htmlspecialchars($values);
-                            }
-                            if ($defaultValues != '') {
-                                $defaultValues = \SpoonFilter::htmlspecialchars($defaultValues);
-                            }
-                        }
-
-                        // split
-                        if ($type == 'dropdown' || $type == 'radiobutton' || $type == 'checkbox') {
-                            $values = (array) explode('|', $values);
-                        }
-
-                        /**
-                         * Save!
-                         */
-                        // settings
-                        $settings = array();
-                        if ($label != '') {
-                            $settings['label'] = \SpoonFilter::htmlspecialchars($label);
-                        }
-                        if ($values != '') {
-                            $settings['values'] = $values;
-                        }
-                        if ($defaultValues != '') {
-                            $settings['default_values'] = $defaultValues;
-                        }
-
-                        // reply-to, only for textboxes
-                        if ($type == 'textbox') {
-                            $settings['reply_to'] = ($replyTo == 'Y');
-                        }
-
-                        // build array
-                        $field = array();
-                        $field['form_id'] = $formId;
-                        $field['type'] = $type;
-                        $field['settings'] = (!empty($settings) ? serialize($settings) : null);
-
-                        // existing field
-                        if ($fieldId !== 0) {
-                            // update field
-                            BackendFormBuilderModel::updateField($fieldId, $field);
-
-                            // delete all validation (added again later)
-                            BackendFormBuilderModel::deleteFieldValidation($fieldId);
-                        } else {
-                            // sequence
-                            $field['sequence'] = BackendFormBuilderModel::getMaximumSequence($formId) + 1;
-
-                            // insert
-                            $fieldId = BackendFormBuilderModel::insertField($field);
-                        }
-
-                        // required
-                        if ($required == 'Y') {
-                            // build array
-                            $validate['field_id'] = $fieldId;
-                            $validate['type'] = 'required';
-                            $validate['error_message'] = \SpoonFilter::htmlspecialchars($requiredErrorMessage);
-
-                            // add validation
-                            BackendFormBuilderModel::insertFieldValidation($validate);
-
-                            // add to field (for parsing)
-                            $field['validations']['required'] = $validate;
-                        }
-
-                        // other validation
-                        if ($validation != '') {
-                            // build array
-                            $validate['field_id'] = $fieldId;
-                            $validate['type'] = $validation;
-                            $validate['error_message'] = \SpoonFilter::htmlspecialchars($errorMessage);
-                            $validate['parameter'] = ($validationParameter != '') ?
-                                \SpoonFilter::htmlspecialchars($validationParameter) :
-                                null
-                            ;
-
-                            // add validation
-                            BackendFormBuilderModel::insertFieldValidation($validate);
-
-                            // add to field (for parsing)
-                            $field['validations'][$type] = $validate;
-                        }
-
-                        // get item from database (i do this call again to keep the pof as low as possible)
-                        $field = BackendFormBuilderModel::getField($fieldId);
-
-                        // submit button isnt parsed but handled directly via javascript
-                        if ($type == 'submit') {
-                            $fieldHTML = '';
-                        } else {
-                            // parse field to html
-                            $fieldHTML = FormBuilderHelper::parseField($field);
-                        }
-
-                        // success output
-                        $this->output(
-                            self::OK,
-                            array(
-                                'field_id' => $fieldId,
-                                'field_html' => $fieldHTML,
-                            ),
-                            'field saved'
-                        );
-                    }
+        // validate textbox
+        switch ($this->type) {
+            case 'textbox':
+            case 'textarea':
+                if ($this->label == '') {
+                    $errors['label'] = BL::getError('LabelIsRequired');
                 }
+                if ($this->required == 'Y' && $this->requiredErrorMessage == '') {
+                    $errors['required_error_message'] = BL::getError('ErrorMessageIsRequired');
+                }
+                if ($this->validation != '' && $this->errorMessage == '') {
+                    $errors['error_message'] = BL::getError('ErrorMessageIsRequired');
+                }
+                break;
+            case 'heading':
+            case 'paragraph':
+            case 'submit':
+                if ($this->values == '') {
+                    $errors['values'] = BL::getError('ValueIsRequired');
+                }
+                break;
+            case 'dropdown':
+                $this->values = trim($this->values, ',');
+
+                if ($this->label == '') {
+                    $errors['label'] = BL::getError('LabelIsRequired');
+                }
+                if ($this->required == 'Y' && $this->requiredErrorMessage == '') {
+                    $errors['required_error_message'] = BL::getError('ErrorMessageIsRequired');
+                }
+                if ($this->values == '') {
+                    $errors['values'] = BL::getError('ValueIsRequired');
+                }
+                break;
+            case 'radiobutton':
+                if ($this->label == '') {
+                    $errors['label'] = BL::getError('LabelIsRequired');
+                }
+                if ($this->required == 'Y' && $this->requiredErrorMessage == '') {
+                    $errors['required_error_message'] = BL::getError('ErrorMessageIsRequired');
+                }
+                if ($this->values == '') {
+                    $errors['values'] = BL::getError('ValueIsRequired');
+                }
+                break;
+            case 'checkbox':
+                if ($this->label == '') {
+                    $errors['label'] = BL::getError('LabelIsRequired');
+                }
+                if ($this->required == 'Y' && $this->requiredErrorMessage == '') {
+                    $errors['required_error_message'] = BL::getError('ErrorMessageIsRequired');
+                }
+                break;
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Cleans up the input
+     */
+    private function cleanUpInput()
+    {
+        // htmlspecialchars except for paragraphs
+        if ($this->type != 'paragraph') {
+            if ($this->values != '') {
+                $this->values = \SpoonFilter::htmlspecialchars($this->values);
+            }
+            if ($this->defaultValues != '') {
+                $this->defaultValues = \SpoonFilter::htmlspecialchars($this->defaultValues);
             }
         }
+
+        // split
+        if ($this->type == 'dropdown' || $this->type == 'radiobutton' || $this->type == 'checkbox') {
+            $this->values = (array) explode('|', $this->values);
+        }
+    }
+
+    /**
+     * Saves the field
+     *
+     * @return string The rendered HTML for the saved field
+     */
+    private function saveField()
+    {
+        // settings
+        $settings = array();
+        if ($this->label != '') {
+            $settings['label'] = \SpoonFilter::htmlspecialchars($this->label);
+        }
+        if ($this->values != '') {
+            $settings['values'] = $this->values;
+        }
+        if ($this->defaultValues != '') {
+            $settings['default_values'] = $this->defaultValues;
+        }
+
+        // reply-to, only for textboxes
+        if ($this->type == 'textbox') {
+            $settings['reply_to'] = ($this->replyTo == 'Y');
+        }
+
+        // build array
+        $field = array();
+        $field['form_id'] = $this->formId;
+        $field['type'] = $this->type;
+        $field['settings'] = (!empty($settings) ? serialize($settings) : null);
+
+        // update existing fields, insert new fields
+        if ($this->fieldId !== 0) {
+            BackendFormBuilderModel::updateField($this->fieldId, $field);
+            BackendFormBuilderModel::deleteFieldValidation($this->fieldId);
+        } else {
+            $field['sequence'] = BackendFormBuilderModel::getMaximumSequence($this->formId) + 1;
+            $this->fieldId = BackendFormBuilderModel::insertField($field);
+        }
+
+        // save validation for required fields
+        if ($this->required == 'Y') {
+            $validate = array(
+                'field_id' => $this->fieldId,
+                'type' => 'required',
+                'error_message' => \SpoonFilter::htmlspecialchars($this->requiredErrorMessage),
+            );
+
+            // add validation
+            BackendFormBuilderModel::insertFieldValidation($validate);
+
+            // add to field (for parsing)
+            $field['validations']['required'] = $validate;
+        }
+
+        // other types of validation
+        if ($this->validation != '') {
+            $validate = array(
+                'field_id' => $this->fieldId,
+                'type' => $this->validation,
+                'error_message' => \SpoonFilter::htmlspecialchars($this->errorMessage),
+                'parameter' => ($this->validationParameter != '') ?
+                    \SpoonFilter::htmlspecialchars($this->validationParameter) :
+                    null,
+            );
+
+            // add validation
+            BackendFormBuilderModel::insertFieldValidation($validate);
+
+            // add to field (for parsing)
+            $field['validations'][$this->type] = $validate;
+        }
+
+        // get item from database (i do this call again to keep the pof as low as possible)
+        $field = BackendFormBuilderModel::getField($this->fieldId);
+
+        // submit button isnt parsed but handled directly via javascript
+        if ($this->type == 'submit') {
+            return '';
+        }
+
+        // parse field to html
+        return FormBuilderHelper::parseField($field);
     }
 }
