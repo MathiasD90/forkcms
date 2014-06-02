@@ -240,10 +240,11 @@ class SaveField extends BackendBaseAJAXAction
         }
 
         // build array
-        $field = array();
-        $field['form_id'] = $this->formId;
-        $field['type'] = $this->type;
-        $field['settings'] = (!empty($settings) ? serialize($settings) : null);
+        $field = array(
+            'form_id' => $this->formId,
+            'type' => $this->type,
+            'settings' => (!empty($settings) ? serialize($settings) : null),
+        );
 
         // update existing fields, insert new fields
         if ($this->fieldId !== 0) {
@@ -254,48 +255,45 @@ class SaveField extends BackendBaseAJAXAction
             $this->fieldId = BackendFormBuilderModel::insertField($field);
         }
 
-        // save validation for required fields
-        if ($this->required == 'Y') {
-            $validate = array(
-                'field_id' => $this->fieldId,
-                'type' => 'required',
-                'error_message' => \SpoonFilter::htmlspecialchars($this->requiredErrorMessage),
-            );
-
-            // add validation
-            BackendFormBuilderModel::insertFieldValidation($validate);
-
-            // add to field (for parsing)
-            $field['validations']['required'] = $validate;
-        }
-
-        // other types of validation
-        if ($this->validation != '') {
-            $validate = array(
-                'field_id' => $this->fieldId,
-                'type' => $this->validation,
-                'error_message' => \SpoonFilter::htmlspecialchars($this->errorMessage),
-                'parameter' => ($this->validationParameter != '') ?
-                    \SpoonFilter::htmlspecialchars($this->validationParameter) :
-                    null,
-            );
-
-            // add validation
-            BackendFormBuilderModel::insertFieldValidation($validate);
-
-            // add to field (for parsing)
-            $field['validations'][$this->type] = $validate;
-        }
-
-        // get item from database (i do this call again to keep the pof as low as possible)
-        $field = BackendFormBuilderModel::getField($this->fieldId);
+        $this->saveValidation();
 
         // submit button isnt parsed but handled directly via javascript
         if ($this->type == 'submit') {
             return '';
         }
 
-        // parse field to html
+        // get item from database (i do this call again to keep the points of failure as low as possible)
+        $field = BackendFormBuilderModel::getField($this->fieldId);
+
+        // return the parsed version of the field.
         return FormBuilderHelper::parseField($field);
+    }
+
+    private function saveValidation()
+    {
+        // save validation for required fields
+        if ($this->required == 'Y') {
+            BackendFormBuilderModel::insertFieldValidation(
+                array(
+                    'field_id' => $this->fieldId,
+                    'type' => 'required',
+                    'error_message' => \SpoonFilter::htmlspecialchars($this->requiredErrorMessage),
+                )
+            );
+        }
+
+        // other types of validation
+        if ($this->validation != '') {
+            BackendFormBuilderModel::insertFieldValidation(
+                array(
+                    'field_id' => $this->fieldId,
+                    'type' => $this->validation,
+                    'error_message' => \SpoonFilter::htmlspecialchars($this->errorMessage),
+                    'parameter' => ($this->validationParameter != '') ?
+                        \SpoonFilter::htmlspecialchars($this->validationParameter) :
+                        null,
+                )
+            );
+        }
     }
 }
