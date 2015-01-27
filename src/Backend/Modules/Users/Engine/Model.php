@@ -21,6 +21,10 @@ use Backend\Core\Engine\User as BackendUser;
  */
 class Model
 {
+    const USER_ENTITY_CLASS =           'Backend\Modules\Users\Entity\User';
+    const USER_SESSION_ENTITY_CLASS =   'Backend\Modules\Users\Entity\UserSession';
+    const GROUP_ENTITY_CLASS =          'Backend\Modules\Users\Entity\Group';
+
     const QRY_BROWSE =
         'SELECT i.id
          FROM users AS i

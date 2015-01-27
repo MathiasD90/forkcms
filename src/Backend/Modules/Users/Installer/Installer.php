@@ -9,23 +9,105 @@ namespace Backend\Modules\Users\Installer;
  * file that was distributed with this source code.
  */
 
+use Backend\Modules\Users\Entity\Group;
 use Symfony\Component\Filesystem\Filesystem;
 
 use Backend\Core\Installer\ModuleInstaller;
+use Backend\Modules\Users\Engine\Model as BackendUsersModel;
 
 /**
- * Installer for the contact module
+ * Installer for the users module
  *
  * @author Davy Hellemans <davy.hellemans@netlash.com>
  * @author Tijs Verkoyen <tijs@sumocoders.be>
  * @author Annelies Van Extergem <annelies.vanextergem@netlash.com>
+ * @author Mathias Dewelde <mathias@studiorauw.be>
  */
 class Installer extends ModuleInstaller
 {
+
+    private $container;
+
+    public function __construct(
+        \SpoonDatabase $db,
+        array $languages,
+        array $interfaceLanguages,
+        $example = false,
+        array $variables = array(),
+        $entityManager
+    )
+    {
+        parent::__construct(
+            $db,
+            $languages,
+            $interfaceLanguages,
+            $example,
+            $variables
+        );
+
+        $this->em = $entityManager;
+    }
+
+
+    /**
+     * Install the module
+     */
+    public function install()
+    {
+        $this->addEntitiesInDatabase(array(
+            BackendUsersModel::GROUP_ENTITY_CLASS, // @todo move to groups module
+            BackendUsersModel::USER_SESSION_ENTITY_CLASS,
+            BackendUsersModel::USER_ENTITY_CLASS
+        ));
+
+        // add 'users' as a module
+        $this->addModule('Users');
+
+        // import locale
+        $this->importLocale(dirname(__FILE__) . '/Data/locale.xml');
+
+        // general settings
+        $this->setSetting('Users', 'default_group', 1);
+        $this->setSetting('Users', 'date_formats', array('j/n/Y', 'd/m/Y', 'j F Y', 'F j, Y'));
+        $this->setSetting('Users', 'time_formats', array('H:i', 'H:i:s', 'g:i a', 'g:i A'));
+
+        $this->setRights();
+        $this->setBackendNavigation();
+
+        $group = new Group();
+        $group->setName('TEST');
+        $group->setParameters(array('test' => 'testing'));
+
+        $this->em->persist($group);
+        $this->em->flush();
+    }
+
+    private function setBackendNavigation()
+    {
+        $navigationSettingsId = $this->setNavigation(null, 'Settings');
+        $this->setNavigation($navigationSettingsId, 'Users', 'users/index',
+            array(
+                'users/add',
+                'users/edit'
+            ), 4
+        );
+    }
+
+    private function setRights()
+    {
+        $this->setModuleRights(1, 'Users');
+
+        $this->setActionRights(1, 'Users', 'Add');
+        $this->setActionRights(1, 'Users', 'Delete');
+        $this->setActionRights(1, 'Users', 'Edit');
+        $this->setActionRights(1, 'Users', 'Index');
+        $this->setActionRights(1, 'Users', 'UndoDelete');
+    }
+
     /**
      * Add a GOD-user
      */
-    private function addUser()
+    private function addGodUser()
     {
         // no god user already exists
         // @todo refactor this nasty if statement...
@@ -175,51 +257,5 @@ class Installer extends ModuleInstaller
 
         // fallback
         return 'weak';
-    }
-
-    /**
-     * Install the module
-     */
-    public function install()
-    {
-        // load install.sql
-        $this->importSQL(dirname(__FILE__) . '/Data/install.sql');
-
-        // add 'users' as a module
-        $this->addModule('Users');
-
-        // import locale
-        $this->importLocale(dirname(__FILE__) . '/Data/locale.xml');
-
-        // general settings
-        $this->setSetting('Users', 'default_group', 1);
-        $this->setSetting('Users', 'date_formats', array('j/n/Y', 'd/m/Y', 'j F Y', 'F j, Y'));
-        $this->setSetting('Users', 'time_formats', array('H:i', 'H:i:s', 'g:i a', 'g:i A'));
-
-        // module rights
-        $this->setModuleRights(1, 'Users');
-
-        // action rights
-        $this->setActionRights(1, 'Users', 'Add');
-        $this->setActionRights(1, 'Users', 'Delete');
-        $this->setActionRights(1, 'Users', 'Edit');
-        $this->setActionRights(1, 'Users', 'Index');
-        $this->setActionRights(1, 'Users', 'UndoDelete');
-
-        // set navigation
-        $navigationSettingsId = $this->setNavigation(null, 'Settings');
-        $this->setNavigation(
-            $navigationSettingsId,
-            'Users',
-            'users/index',
-            array(
-                 'users/add',
-                 'users/edit'
-            ),
-            4
-        );
-
-        // add default user
-        $this->addUser();
     }
 }

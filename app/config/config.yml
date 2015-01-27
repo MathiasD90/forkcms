@@ -48,6 +48,10 @@ doctrine:
                 type: annotation
                 dir: %kernel.root_dir%/../src/Backend/Modules/Faq/Entity
                 prefix: Backend\Modules\Faq\Entity
+            Users:
+                type: annotation
+                dir: %kernel.root_dir%/../src/Backend/Modules/Users/Entity
+                prefix: Backend\Modules\Users\Entity
             Core:
                 type: annotation
                 dir: %kernel.root_dir%/../src/Backend/Core/Entity

@@ -224,7 +224,8 @@ class ForkInstaller
                     $data->getLanguages(),
                     $data->getInterfaceLanguages(),
                     $data->hasExampleData(),
-                    $this->getInstallerData($data)
+                    $this->getInstallerData($data),
+                    $this->container->get('doctrine.orm.entity_manager')
                 );
 
                 // install the module
