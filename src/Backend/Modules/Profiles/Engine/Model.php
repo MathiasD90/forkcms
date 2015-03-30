@@ -21,9 +21,15 @@ use Backend\Core\Engine\Exception as BackendException;
  *
  * @author Dieter Vanden Eynde <dieter.vandeneynde@netlash.com>
  * @author Jeroen Desloovere <jeroen@siesqo.be>
+ * @author Mathias Dewelde <mathias@dewelde.be>
  */
 class Model
 {
+    const PROFILE_ENTITY_CLASS = 'Backend\Modules\Profiles\Entity\Profile';
+    const PROFILE_GROUP_ENTITY_CLASS = 'Backend\Modules\Profiles\Entity\ProfileGroup';
+    const PROFILE_GROUP_RIGHTS_CLASS = 'Backend\Modules\Profiles\Entity\ProfileGroupRights';
+    const PROFILE_SESSION = 'Backend\Modules\Profiles\Entity\ProfileSession';
+
     /**
      * Cache avatars
      *

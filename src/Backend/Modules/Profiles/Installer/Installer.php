@@ -10,12 +10,14 @@ namespace Backend\Modules\Profiles\Installer;
  */
 
 use Backend\Core\Installer\ModuleInstaller;
+use Backend\Modules\Profiles\Engine\Model as BackendProfilesModel;
 
 /**
  * Installer for the profiles module.
  *
  * @author Dieter Vanden Eynde <dieter.vandeneynde@netlash.com>
  * @author Davy Van Vooren <davy.vanvooren@netlash.com>
+ * @author Mathias Dewelde <mathias@dewelde.be>
  */
 class Installer extends ModuleInstaller
 {
@@ -24,8 +26,12 @@ class Installer extends ModuleInstaller
      */
     public function install()
     {
-        // load install.sql
-        $this->importSQL(dirname(__FILE__) . '/Data/install.sql');
+        $this->addEntitiesInDatabase(array(
+            BackendProfilesModel::PROFILE_ENTITY_CLASS,
+            BackendProfilesModel::PROFILE_GROUP_ENTITY_CLASS,
+            BackendProfilesModel::PROFILE_GROUP_RIGHTS_CLASS,
+            BackendProfilesModel::PROFILE_SESSION
+        ));
 
         // add 'profiles' as a module
         $this->addModule('Profiles');

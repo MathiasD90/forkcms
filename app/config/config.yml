@@ -56,6 +56,10 @@ doctrine:
                 type: annotation
                 dir: %kernel.root_dir%/../src/Backend/Modules/Location/Entity
                 prefix: Backend\Modules\Location\Entity
+            Profiles:
+                type: annotation
+                dir: %kernel.root_dir%/../src/Backend/Modules/Profiles/Entity
+                prefix: Backend\Modules\Profiles\Entity
 
 twig:
     debug:            "%kernel.debug%"
