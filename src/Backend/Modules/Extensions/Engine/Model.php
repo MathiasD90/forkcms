@@ -27,6 +27,8 @@ use Backend\Core\Engine\Model as BackendModel;
  */
 class Model
 {
+    const LOCATION_ENTITY_CLASS = 'Backend\Modules\Extensions\Entity\Module';
+
     /**
      * Overview of templates.
      *
